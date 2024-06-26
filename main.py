@@ -116,13 +116,5 @@ def main():
     pprint.pprint(alive_fixed_clients)
 
 
-def test_org_selection():
-    dashboard = initialize_dashboard(API_KEY)
-    # Menu for choosing an organization
-    chosen_org = chose_org(dashboard)
-    print(chose_network(dashboard, chosen_org))
-
-
 if __name__ == "__main__":
-    #test_org_selection()
     main()

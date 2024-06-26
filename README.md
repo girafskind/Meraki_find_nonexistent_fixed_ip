@@ -9,4 +9,4 @@ This script will take all fixed IP reservations in a given network, then check i
 - [x] Gather fixed IP from network
 - [x] Check client MAC
 - [ ] Delete fixed IP from network
-- [ ] Some kind of iteration over the organization networks
+- [x] Some kind of iteration over the organization networks
