@@ -25,11 +25,15 @@ def get_dhcp_reservations(dashboard: meraki.DashboardAPI, net_id: str):
     :param net_id: Network ID to look into
     :return: List of dicts containing every DHCP reservation
     """
-    appliance_vlans = dashboard.appliance.getNetworkApplianceVlans(net_id)
-    fixed_ips = {}
-    for vlan in appliance_vlans:
-        if vlan['fixedIpAssignments']:
-            fixed_ips.update(vlan['fixedIpAssignments'])
+    try:
+        appliance_vlans = dashboard.appliance.getNetworkApplianceVlans(net_id)
+        fixed_ips = {}
+        for vlan in appliance_vlans:
+            if vlan['fixedIpAssignments']:
+                fixed_ips.update(vlan['fixedIpAssignments'])
+    except meraki.APIError as e:
+        print(e.message)
+        fixed_ips = {}
 
     return fixed_ips
 
@@ -78,7 +82,7 @@ def chose_org(dashboard: meraki.DashboardAPI) -> str:
     return list_of_orgs[org_index]['id']
 
 
-def chose_network(dashboard:meraki.DashboardAPI, org_id: str) -> str:
+def chose_network(dashboard:meraki.DashboardAPI, org_id: str) -> list:
     """
     Function that gets all network the within an organization, and returns them as a list
     :param dashboard: Meraki dashboard object
@@ -90,10 +94,13 @@ def chose_network(dashboard:meraki.DashboardAPI, org_id: str) -> str:
     list_of_networks = dashboard.organizations.getOrganizationNetworks(org_id)
     print("Following networks is available for {}:".format(org_id))
     for i, network in enumerate(list_of_networks):
-        print(i, network['name'])
-    chosen_network = int(input("Which network to trawl for fixed IPs?"))
+        print("#",i, network['name'])
+    chosen_network = input("Chose network # to trawl for fixed IPs or 'all' :")
 
-    return list_of_networks[chosen_network]['id']
+    if chosen_network == "all":
+        return list_of_networks
+    else:
+        return [list_of_networks[int(chosen_network)]]
 
 
 def main():
@@ -104,16 +111,19 @@ def main():
     # Menu for choosing the network
     chosen_network = chose_network(dashboard, chosen_org)
     # We gather a list of fixed IP assignments
-    fixed_clients = get_dhcp_reservations(dashboard, chosen_network)
-    # We pass the list of fixed IP assignments to this function to find which of these have not been seen
-    old_fixed_clients, alive_fixed_clients = get_clients_older_than(dashboard, chosen_network, fixed_clients)
-    # Then we print a list of the fixed IP list and which have not been seen
-    print("Fixed clients")
-    pprint.pprint(fixed_clients)
-    print("Fixed clients not seen")
-    pprint.pprint(old_fixed_clients)
-    print("Fixed clients still alive")
-    pprint.pprint(alive_fixed_clients)
+    for network in chosen_network:
+        print(network)
+        print("Trawling network", network['name'], "for fixed IP")
+        fixed_clients = get_dhcp_reservations(dashboard, network['id'])
+        # We pass the list of fixed IP assignments to this function to find which of these have not been seen
+        old_fixed_clients, alive_fixed_clients = get_clients_older_than(dashboard, network['id'], fixed_clients)
+        # Then we print a list of the fixed IP list and which have not been seen
+        print("Fixed clients")
+        pprint.pprint(fixed_clients)
+        print("Fixed clients not seen")
+        pprint.pprint(old_fixed_clients)
+        print("Fixed clients still alive")
+        pprint.pprint(alive_fixed_clients)
 
 
 if __name__ == "__main__":
