@@ -144,10 +144,11 @@ def main():
     # We gather a list of fixed IP assignments
     for network in chosen_network:
         print("Trawling network", network['name'], "for fixed IP")
+        # Gather all fixed IPs from current network and create list of objects
         fixed_clients = get_dhcp_reservations(dashboard, network['id'], chosen_org)
-        # We pass the list of fixed IP assignments to this function to find which of these have not been seen
+        # We pass the list of fixed IP objects to this function to find which of these have not been seen
         get_clients_older_than(dashboard, network['id'], fixed_clients)
-        # Then we print a list of the fixed IP list and which have not been seen
+        # Add the list of fixed clients to global list
         all_fixed_clients.extend(fixed_clients)
 
     write_to_csv(all_fixed_clients)
