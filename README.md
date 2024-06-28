@@ -4,9 +4,12 @@ This script will take all fixed IP reservations in a given network, then check i
 ## Files
 - main.py - Main script file
 - config.py - File containing API key and network ID
+- device_class.py - File containing FixedIP class
+- output.csv - Script will write result to this file
 
 ## Todo
 - [x] Gather fixed IP from network
 - [x] Check client MAC
 - [ ] Delete fixed IP from network
 - [x] Some kind of iteration over the organization networks
+- [x] Write output to CSV file
