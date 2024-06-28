@@ -2,7 +2,7 @@ import meraki
 import pprint
 from datetime import datetime, timedelta
 
-from config import API_KEY, NET_ID
+from config import API_KEY
 
 
 # Initialize Meraki Dashboard object
@@ -74,7 +74,7 @@ def chose_org(dashboard: meraki.DashboardAPI) -> str:
     """
     list_of_orgs = dashboard.organizations.getOrganizations()
 
-    print("Following organzations is available for API-key")
+    print("Following organizations is available for API-key")
     for i, organization in enumerate(list_of_orgs):
         print(i, organization['name'])
     org_index = int(input("Which organization to trawl for fixed IPs?"))
@@ -82,7 +82,7 @@ def chose_org(dashboard: meraki.DashboardAPI) -> str:
     return list_of_orgs[org_index]['id']
 
 
-def chose_network(dashboard:meraki.DashboardAPI, org_id: str) -> list:
+def chose_network(dashboard: meraki.DashboardAPI, org_id: str) -> list:
     """
     Function that gets all network the within an organization, and returns them as a list
     :param dashboard: Meraki dashboard object
@@ -94,7 +94,7 @@ def chose_network(dashboard:meraki.DashboardAPI, org_id: str) -> list:
     list_of_networks = dashboard.organizations.getOrganizationNetworks(org_id)
     print("Following networks is available for {}:".format(org_id))
     for i, network in enumerate(list_of_networks):
-        print("#",i, network['name'])
+        print("#", i, network['name'])
     chosen_network = input("Chose network # to trawl for fixed IPs or 'all' :")
 
     if chosen_network == "all":
@@ -112,7 +112,7 @@ def main():
     chosen_network = chose_network(dashboard, chosen_org)
     # We gather a list of fixed IP assignments
     for network in chosen_network:
-        print(network)
+        #print(network)
         print("Trawling network", network['name'], "for fixed IP")
         fixed_clients = get_dhcp_reservations(dashboard, network['id'])
         # We pass the list of fixed IP assignments to this function to find which of these have not been seen
