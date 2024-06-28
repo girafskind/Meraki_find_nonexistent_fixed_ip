@@ -1,15 +1,12 @@
 import csv
-
 import meraki
-import pprint
 from datetime import datetime, timedelta
-
 from config import API_KEY
 from device_class import FixedIP
 
 
 # Initialize Meraki Dashboard object
-def initialize_dashboard(api_key: meraki.DashboardAPI):
+def initialize_dashboard(api_key: str) -> meraki.DashboardAPI:
     """
     Initialize Meraki Dashboard object
     :param api_key: API key for authorizing access
@@ -26,7 +23,7 @@ def get_dhcp_reservations(dashboard: meraki.DashboardAPI, net_id: str, org_tuple
     Return list of all DHCP reservations
     :param dashboard: Meraki Dashboard object
     :param net_id: Network ID to look into
-    :param org_id: Organization ID and name
+    :param org_tuple: Organization ID and name
     :return: List of dicts containing every DHCP reservation
     """
 
@@ -49,7 +46,6 @@ def get_dhcp_reservations(dashboard: meraki.DashboardAPI, net_id: str, org_tuple
 
     except meraki.APIError as e:
         print(e.message)
-        fixed_ips = {}
 
     return fixed_ip_object_list
 
@@ -69,7 +65,7 @@ def get_clients_older_than(dashboard: meraki.DashboardAPI, net_id: str, fixed_cl
     for fixed_client in fixed_clients:
         try:
             network_client = dashboard.networks.getNetworkClient(net_id, fixed_client.mac)
-        except meraki.APIError as e:
+        except meraki.APIError:
             fixed_client.dead()
             clients_not_older_than_arg.append(fixed_client)
             continue
@@ -122,7 +118,12 @@ def chose_network(dashboard: meraki.DashboardAPI, org_id: tuple) -> list:
         return [list_of_networks[int(chosen_network)]]
 
 
-def write_to_csv(objects):
+def write_to_csv(objects: list):
+    """
+    Write list of fixed IP objects to a CSV-file
+    :param objects: List of fixed IP objects
+    :return: None
+    """
     with open("output.csv", 'w') as csvfile:
         fields = ['Alive', 'MAC', 'IP', 'Hostname', 'Network ID', 'Organization Name', 'Organization ID', 'VLAN ID']
         writer = csv.writer(csvfile)
