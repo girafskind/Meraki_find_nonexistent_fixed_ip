@@ -1,8 +1,11 @@
+import csv
+
 import meraki
 import pprint
 from datetime import datetime, timedelta
 
 from config import API_KEY
+from device_class import FixedIP
 
 
 # Initialize Meraki Dashboard object
@@ -18,28 +21,41 @@ def initialize_dashboard(api_key: meraki.DashboardAPI):
 
 
 # Gather list of DHCP reservations
-def get_dhcp_reservations(dashboard: meraki.DashboardAPI, net_id: str):
+def get_dhcp_reservations(dashboard: meraki.DashboardAPI, net_id: str, org_tuple: tuple):
     """
     Return list of all DHCP reservations
     :param dashboard: Meraki Dashboard object
     :param net_id: Network ID to look into
+    :param org_id: Organization ID and name
     :return: List of dicts containing every DHCP reservation
     """
+
+    org_id = org_tuple[0]
+    org_name = org_tuple[1]
+
+    fixed_ip_object_list = []
     try:
         appliance_vlans = dashboard.appliance.getNetworkApplianceVlans(net_id)
         fixed_ips = {}
         for vlan in appliance_vlans:
             if vlan['fixedIpAssignments']:
                 fixed_ips.update(vlan['fixedIpAssignments'])
+                for fix_ip in vlan['fixedIpAssignments']:
+                    fixed_ip_object_list.append(FixedIP(fix_ip,
+                                                        vlan['fixedIpAssignments'][fix_ip]['ip'],
+                                                        vlan['fixedIpAssignments'][fix_ip]['name'],
+                                                        net_id, vlan['id'],
+                                                        org_id, org_name))
+
     except meraki.APIError as e:
         print(e.message)
         fixed_ips = {}
 
-    return fixed_ips
+    return fixed_ip_object_list
 
 
 # Find all clients that have not been seen for X number of days
-def get_clients_older_than(dashboard: meraki.DashboardAPI, net_id: str, fixed_clients: dict, older_than_days=30):
+def get_clients_older_than(dashboard: meraki.DashboardAPI, net_id: str, fixed_clients: list, older_than_days=30):
     """
     Return a list of clients that have not been seen on the network for the given number of days
     :param fixed_clients: Dictionary of fixed clients
@@ -52,8 +68,9 @@ def get_clients_older_than(dashboard: meraki.DashboardAPI, net_id: str, fixed_cl
     clients_still_alive = []
     for fixed_client in fixed_clients:
         try:
-            network_client = dashboard.networks.getNetworkClient(net_id, fixed_client)
+            network_client = dashboard.networks.getNetworkClient(net_id, fixed_client.mac)
         except meraki.APIError as e:
+            fixed_client.dead()
             clients_not_older_than_arg.append(fixed_client)
             continue
         time_string = network_client['lastSeen']
@@ -61,12 +78,14 @@ def get_clients_older_than(dashboard: meraki.DashboardAPI, net_id: str, fixed_cl
         time_since = datetime.now() - last_seen
         if time_since > timedelta(days=older_than_days):
             clients_not_older_than_arg.append(fixed_client)
+            fixed_client.dead()
         else:
             clients_still_alive.append(fixed_client)
+            fixed_client.alive()
     return clients_not_older_than_arg, clients_still_alive
 
 
-def chose_org(dashboard: meraki.DashboardAPI) -> str:
+def chose_org(dashboard: meraki.DashboardAPI) -> tuple:
     """
     Function that gets all organizations the API-key has access to, and user chooses one organization
     :param dashboard: Meraki dashboard object
@@ -79,10 +98,10 @@ def chose_org(dashboard: meraki.DashboardAPI) -> str:
         print(i, organization['name'])
     org_index = int(input("Which organization to trawl for fixed IPs?"))
 
-    return list_of_orgs[org_index]['id']
+    return list_of_orgs[org_index]['id'], list_of_orgs[org_index]['name']
 
 
-def chose_network(dashboard: meraki.DashboardAPI, org_id: str) -> list:
+def chose_network(dashboard: meraki.DashboardAPI, org_id: tuple) -> list:
     """
     Function that gets all network the within an organization, and returns them as a list
     :param dashboard: Meraki dashboard object
@@ -91,7 +110,7 @@ def chose_network(dashboard: meraki.DashboardAPI, org_id: str) -> list:
     :param dashboard:
     :return:
     """
-    list_of_networks = dashboard.organizations.getOrganizationNetworks(org_id)
+    list_of_networks = dashboard.organizations.getOrganizationNetworks(org_id[0])
     print("Following networks is available for {}:".format(org_id))
     for i, network in enumerate(list_of_networks):
         print("#", i, network['name'])
@@ -103,6 +122,15 @@ def chose_network(dashboard: meraki.DashboardAPI, org_id: str) -> list:
         return [list_of_networks[int(chosen_network)]]
 
 
+def write_to_csv(objects):
+    with open("output.csv", 'w') as csvfile:
+        fields = ['Alive', 'MAC', 'IP', 'Hostname', 'Network ID', 'Organization Name', 'Organization ID', 'VLAN ID']
+        writer = csv.writer(csvfile)
+        writer.writerow(fields)
+        for fixip_object in objects:
+            writer.writerow(fixip_object.print())
+
+
 def main():
     # We initialize the dashboard
     dashboard = initialize_dashboard(API_KEY)
@@ -110,20 +138,18 @@ def main():
     chosen_org = chose_org(dashboard)
     # Menu for choosing the network
     chosen_network = chose_network(dashboard, chosen_org)
+    # Global fixed_clients
+    all_fixed_clients = []
     # We gather a list of fixed IP assignments
     for network in chosen_network:
-        #print(network)
         print("Trawling network", network['name'], "for fixed IP")
-        fixed_clients = get_dhcp_reservations(dashboard, network['id'])
+        fixed_clients = get_dhcp_reservations(dashboard, network['id'], chosen_org)
         # We pass the list of fixed IP assignments to this function to find which of these have not been seen
-        old_fixed_clients, alive_fixed_clients = get_clients_older_than(dashboard, network['id'], fixed_clients)
+        get_clients_older_than(dashboard, network['id'], fixed_clients)
         # Then we print a list of the fixed IP list and which have not been seen
-        print("Fixed clients")
-        pprint.pprint(fixed_clients)
-        print("Fixed clients not seen")
-        pprint.pprint(old_fixed_clients)
-        print("Fixed clients still alive")
-        pprint.pprint(alive_fixed_clients)
+        all_fixed_clients.extend(fixed_clients)
+
+    write_to_csv(all_fixed_clients)
 
 
 if __name__ == "__main__":
